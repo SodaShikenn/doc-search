@@ -1,0 +1,7 @@
+{
+  "_comment": "実データを持つマシンで: cp datasource.example.json datasource.json して編集。datasource.json は gitignore 済み（社内リポジトリへのポインタは push されない）。編集後: .venv/bin/python -m docsearch index",
+  "name": "payroll-docs",
+  "docs_dir": "/path/to/real/payroll-docs-repo",
+  "github_base": "https://github.example.com/org/payroll-docs/blob/main",
+  "embedder": "auto"
+}

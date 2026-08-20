@@ -21,8 +21,9 @@ services:
       # auto-detection can't run in the container)
       DOCSEARCH_GITHUB_BASE: ${DOCSEARCH_GITHUB_BASE:-}
     volumes:
-      # point this at the real docs repo on the host
-      - ./sample_docs:/docs:ro
+      # replaceable data source: set DOCSEARCH_DOCS_HOST in .env to the real
+      # docs repo on the machine that has access (default: placeholder samples)
+      - ${DOCSEARCH_DOCS_HOST:-./sample_docs}:/docs:ro
       - docsearch-index:/data
     # on-failure (not unless-stopped) so a misconfigured embedder/key fails
     # visibly after 5 attempts instead of crash-looping forever

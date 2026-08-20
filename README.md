@@ -114,6 +114,23 @@ auto の判断シグナル: キーワード一致の有無・ベクトル類似�
 Claude Code 自身がクエリ立案→再検索→ファイル読解→引用回答まで行うため、
 チャットUIとは別に、エディタ内での Agentic RAG が成立する。
 
+## 実データへの差し替え（アクセス権のあるマシンで）
+
+このリポジトリに入っているのは **プレースホルダ（sample_docs）だけ**。
+実データと社内リポジトリのリンクは、アクセス権のあるマシン側で
+コード変更なしに差し替える。優先順位:
+
+1. **環境変数**（Docker はこれ）: `.env` に
+   `DOCSEARCH_DOCS_HOST=/path/to/real-docs`（コンテナへのマウント元）と
+   `DOCSEARCH_GITHUB_BASE=https://github.example.com/org/repo/blob/main`
+2. **設定ファイル**（ローカル実行）: `cp datasource.example.json datasource.json`
+   して `docs_dir` / `github_base` / `embedder` を編集 → `docsearch index`（引数なし）。
+   `datasource.json` は gitignore 済みで、社内リポジトリへのポインタは push されない
+3. **プレースホルダ**: 何も設定しなければ `sample_docs/` を索引
+
+解決ロジックは [docsearch/datasource.py](docsearch/datasource.py) の
+`get_datasource()` 1関数に集約されている。
+
 ## 引用の GitHub リンク
 
 検索結果・引用チップ・回答中の `[path:line]` は、ドキュメントリポジトリの

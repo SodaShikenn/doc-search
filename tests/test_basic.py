@@ -5,10 +5,37 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import os  # noqa: E402
+
 from docsearch.chunker import chunk_file  # noqa: E402
+from docsearch.datasource import PLACEHOLDER, get_datasource  # noqa: E402
 from docsearch.gitlink import doc_url, parse_remote  # noqa: E402
 from docsearch.search import _snippet  # noqa: E402
 from docsearch.textutil import fts_query, index_tokens, query_terms  # noqa: E402
+
+
+def test_datasource(tmp_path: Path):
+    # no config file -> the built-in placeholder
+    ds = get_datasource(tmp_path / "missing.json")
+    assert ds.docs_dir == PLACEHOLDER.docs_dir
+    assert "placeholder" in ds.name
+    # config file replaces the placeholder (how the data-owning machine plugs in)
+    cfg = tmp_path / "ds.json"
+    cfg.write_text(
+        '{"name":"real","docs_dir":"/data/docs",'
+        '"github_base":"https://ghe.corp/o/r/blob/main","embedder":"voyage"}',
+        encoding="utf-8",
+    )
+    ds = get_datasource(cfg)
+    assert (ds.docs_dir, ds.embedder) == ("/data/docs", "voyage")
+    # env vars override individual fields; the rest survive
+    os.environ["DOCSEARCH_DOCS"] = "/env/docs"
+    try:
+        ds = get_datasource(cfg)
+        assert ds.docs_dir == "/env/docs"
+        assert ds.github_base == "https://ghe.corp/o/r/blob/main"
+    finally:
+        del os.environ["DOCSEARCH_DOCS"]
 
 
 def test_gitlink():
@@ -74,5 +101,7 @@ if __name__ == "__main__":
     test_gitlink()
     with tempfile.TemporaryDirectory() as d:
         test_chunker(Path(d))
+    with tempfile.TemporaryDirectory() as d:
+        test_datasource(Path(d))
     test_snippet_nfkc_offsets()
     print("all tests passed")

@@ -17,12 +17,18 @@ def main(argv=None) -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("index", help="build the index from a docs directory")
-    p.add_argument("docs_dir")
+    p.add_argument(
+        "docs_dir",
+        nargs="?",
+        default=None,
+        help="docs repo/folder (default: the configured datasource — see "
+        "datasource.example.json / DOCSEARCH_DOCS)",
+    )
     p.add_argument("--index-dir", default="index")
     p.add_argument("--no-vector", action="store_true", help="keyword index only")
     p.add_argument(
         "--embedder",
-        default="auto",
+        default=None,
         choices=["auto", "voyage", "e5", "e5-large", "bge-m3", "hash"],
         help="voyage: cloud, zero local deps / e5, e5-large, bge-m3: local "
         "(requirements-local.txt) / auto: voyage if key set, else e5 if "
@@ -51,14 +57,20 @@ def main(argv=None) -> None:
     args = ap.parse_args(argv)
 
     if args.cmd == "index":
+        from .datasource import get_datasource
         from .indexer import build_index
 
+        ds = get_datasource()
+        if not args.docs_dir:
+            import sys
+
+            print(f"datasource: {ds.name}", file=sys.stderr)
         build_index(
-            args.docs_dir,
+            args.docs_dir or ds.docs_dir,
             args.index_dir,
             with_vectors=not args.no_vector,
-            embedder_name=args.embedder,
-            github_base=args.github_base,
+            embedder_name=args.embedder or ds.embedder,
+            github_base=args.github_base or ds.github_base,
         )
 
     elif args.cmd == "search":
