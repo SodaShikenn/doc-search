@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from .embedder import get_embedder
+from .gitlink import doc_url
 from .textutil import fts_query, normalize, query_terms
 
 RRF_K = 60
@@ -120,6 +121,7 @@ class SearchIndex:
                 "path": path,
                 "heading": heading,
                 "line": line,
+                "url": doc_url(self.meta.get("github_base"), path, line),
                 "snippet": _snippet(text, terms),
             }
             if include_text:

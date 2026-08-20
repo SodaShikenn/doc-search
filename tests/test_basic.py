@@ -6,8 +6,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from docsearch.chunker import chunk_file  # noqa: E402
+from docsearch.gitlink import doc_url, parse_remote  # noqa: E402
 from docsearch.search import _snippet  # noqa: E402
 from docsearch.textutil import fts_query, index_tokens, query_terms  # noqa: E402
+
+
+def test_gitlink():
+    assert parse_remote("git@github.com:o/r.git") == "https://github.com/o/r"
+    assert parse_remote("https://github.com/o/r") == "https://github.com/o/r"
+    assert parse_remote("https://user@ghe.corp.jp/team/docs.git") == "https://ghe.corp.jp/team/docs"
+    assert parse_remote("ssh://git@ghe.corp.jp/team/docs.git") == "https://ghe.corp.jp/team/docs"
+    assert parse_remote("/local/path") is None
+    assert parse_remote("") is None
+    base = "https://github.com/o/r/blob/abc123/docs"
+    assert doc_url(base, "payroll/glossary.md", 35) == base + "/payroll/glossary.md#L35"
+    assert doc_url(base, "日本語 名.md", 1) == base + "/%E6%97%A5%E6%9C%AC%E8%AA%9E%20%E5%90%8D.md#L1"
+    assert doc_url(None, "a.md", 1) is None
 
 
 def test_snippet_nfkc_offsets():
@@ -57,6 +71,7 @@ if __name__ == "__main__":
 
     test_tokenize()
     test_fts_query()
+    test_gitlink()
     with tempfile.TemporaryDirectory() as d:
         test_chunker(Path(d))
     test_snippet_nfkc_offsets()

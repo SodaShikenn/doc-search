@@ -114,6 +114,17 @@ auto の判断シグナル: キーワード一致の有無・ベクトル類似�
 Claude Code 自身がクエリ立案→再検索→ファイル読解→引用回答まで行うため、
 チャットUIとは別に、エディタ内での Agentic RAG が成立する。
 
+## 引用の GitHub リンク
+
+検索結果・引用チップ・回答中の `[path:line]` は、ドキュメントリポジトリの
+GitHub 上の該当行への深いリンクになる（`blob/<インデックス時のSHA>/path#L<line>`
+形式なので、リポジトリが進んでも行アンカーはずれない）。
+
+- インデックス時に docs リポジトリの `git remote` から**自動検出**（GHE も可）
+- 自動検出できない場合（Docker で docs をマウントした場合など）は
+  `DOCSEARCH_GITHUB_BASE=https://github.com/o/r/blob/main/docs` を `.env` に設定
+  （CLI では `--github-base`）
+
 ## 検索エンジンの設計ポイント
 
 - **日本語キーワード検索**: CJK文字列をバイグラム展開して SQLite FTS5 に索引。

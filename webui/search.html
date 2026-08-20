@@ -128,7 +128,7 @@ async function run() {
       if (res.vec_rank) badges.push(`<span class="badge vec">VEC #${res.vec_rank} · cos ${res.vec_score.toFixed(3)}</span>`);
       badges.push(`<span class="badge rrf">RRF ${res.rrf.toFixed(4)}</span>`);
       return `<div class="card">
-        <div class="path">${esc(res.path)}:${res.line}</div>
+        <div class="path">${res.url ? `<a href="${esc(res.url)}" target="_blank" rel="noopener">${esc(res.path)}:${res.line} ↗</a>` : `${esc(res.path)}:${res.line}`}</div>
         ${res.heading ? `<div class="heading">${highlight(res.heading, data.terms)}</div>` : ''}
         <div class="snippet">${highlight(res.snippet, data.terms)}</div>
         <div class="badges">${badges.join('')}</div>

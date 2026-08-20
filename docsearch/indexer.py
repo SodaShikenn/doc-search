@@ -44,6 +44,7 @@ def build_index(
     index_dir: str | Path = "index",
     with_vectors: bool = True,
     embedder_name: str = "auto",
+    github_base: str | None = None,
 ) -> dict:
     docs_dir = Path(docs_dir).resolve()
     index_dir = Path(index_dir)
@@ -84,12 +85,19 @@ def build_index(
     con.commit()
     con.close()
 
+    from .gitlink import detect_github_base
+
+    resolved_base = github_base.rstrip("/") if github_base else detect_github_base(docs_dir)
+    if resolved_base:
+        print(f"doc links -> {resolved_base}/<path>#L<line>", file=sys.stderr)
+
     meta = {
         "docs_dir": str(docs_dir),
         "files": n_files,
         "chunks": len(chunks),
         "embedder": None,
         "dim": None,
+        "github_base": resolved_base,
         "built_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
 

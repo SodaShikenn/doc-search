@@ -28,6 +28,13 @@ def main(argv=None) -> None:
         "(requirements-local.txt) / auto: voyage if key set, else e5 if "
         "installed, else hash (degraded)",
     )
+    p.add_argument(
+        "--github-base",
+        default=None,
+        help="blob-URL base for doc links, e.g. https://github.com/o/r/blob/main/docs "
+        "(default: auto-detect from the docs repo's git remote; env "
+        "DOCSEARCH_GITHUB_BASE also overrides)",
+    )
 
     p = sub.add_parser("search", help="search from the command line")
     p.add_argument("query")
@@ -51,6 +58,7 @@ def main(argv=None) -> None:
             args.index_dir,
             with_vectors=not args.no_vector,
             embedder_name=args.embedder,
+            github_base=args.github_base,
         )
 
     elif args.cmd == "search":

@@ -66,8 +66,9 @@ def _format(out: dict) -> str:
         if r.get("vec_rank"):
             via.append(f"vec#{r['vec_rank']}:{r['vec_score']:.3f}")
         head = f" | {r['heading']}" if r["heading"] else ""
+        link = f"\n    {r['url']}" if r.get("url") else ""
         lines.append(
-            f"[{i}] {r['path']}:{r['line']} ({','.join(via)}){head}\n    {r['snippet']}"
+            f"[{i}] {r['path']}:{r['line']} ({','.join(via)}){head}\n    {r['snippet']}{link}"
         )
     lines.append(
         "\nTip: results are chunks. For full context, read the file at the "

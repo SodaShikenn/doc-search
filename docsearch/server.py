@@ -120,12 +120,14 @@ def create_app(index_dir: str = "index") -> FastAPI:
             yield _sse(
                 {
                     "type": "sources",
+                    "github_base": index.meta.get("github_base"),
                     "sources": [
                         {
                             "path": s["path"],
                             "line": s["line"],
                             "heading": s["heading"],
                             "snippet": s["snippet"],
+                            "url": s.get("url"),
                             "kw_rank": s.get("kw_rank"),
                             "vec_rank": s.get("vec_rank"),
                         }

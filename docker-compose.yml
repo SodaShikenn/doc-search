@@ -17,6 +17,9 @@ services:
       DOCSEARCH_EMBEDDER: ${DOCSEARCH_EMBEDDER:-auto}
       # DOCSEARCH_REINDEX=1 docker compose up -d  → rebuild the index
       DOCSEARCH_REINDEX: ${DOCSEARCH_REINDEX:-0}
+      # blob-URL base for citation links (mounted docs have no .git, so
+      # auto-detection can't run in the container)
+      DOCSEARCH_GITHUB_BASE: ${DOCSEARCH_GITHUB_BASE:-}
     volumes:
       # point this at the real docs repo on the host
       - ./sample_docs:/docs:ro
