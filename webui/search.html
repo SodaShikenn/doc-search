@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doc Search</title>
+<style>
+  :root {
+    --bg: #f6f8fa; --card: #ffffff; --ink: #1f2933; --sub: #6b7686;
+    --accent: #2456d6; --accent-soft: #e8eefc; --mark: #fff1a8;
+    --kw: #0e7a4a; --kw-soft: #e3f5ec; --vec: #7a3ce0; --vec-soft: #f0e8fc;
+    --border: #dde3ea;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h1 .beam { color: var(--accent); }
+  .stats { color: var(--sub); font-size: 13px; margin-bottom: 22px; }
+  .searchrow { display: flex; gap: 10px; }
+  input[type=search] {
+    flex: 1; font-size: 17px; padding: 12px 16px; border-radius: 10px;
+    border: 1.5px solid var(--border); outline: none; background: var(--card);
+  }
+  input[type=search]:focus { border-color: var(--accent); }
+  .modes { display: flex; gap: 6px; margin: 14px 0 6px; }
+  .modes button {
+    border: 1px solid var(--border); background: var(--card); color: var(--sub);
+    padding: 6px 14px; border-radius: 999px; font-size: 13px; cursor: pointer;
+  }
+  .modes button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .meta { color: var(--sub); font-size: 12.5px; min-height: 18px; margin: 6px 2px 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 12px;
+  }
+  .path { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--sub); }
+  .heading { font-weight: 600; font-size: 15px; margin: 3px 0 6px; }
+  .snippet { font-size: 14px; line-height: 1.75; color: #3a4552; word-break: break-word; }
+  mark { background: var(--mark); padding: 0 1px; border-radius: 3px; }
+  .badges { margin-top: 9px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; font-weight: 600; }
+  .badge.kw  { color: var(--kw);  background: var(--kw-soft); }
+  .badge.vec { color: var(--vec); background: var(--vec-soft); }
+  .badge.rrf { color: var(--accent); background: var(--accent-soft); }
+  .empty { color: var(--sub); text-align: center; padding: 48px 0; font-size: 14px; }
+  .hint { font-size: 12.5px; color: var(--sub); margin-top: 8px; line-height: 1.7; }
+  .hint code { background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Doc Search <span class="beam">/ 検索エクスプローラ</span> <a href="/" style="font-size:13px;font-weight:600;margin-left:10px;">← チャットへ</a></h1>
+  <div class="stats" id="stats">loading…</div>
+
+  <div class="searchrow">
+    <input id="q" type="search" placeholder="例: 消費税区分 / チャーンレート / 同じリクエストを2回送っても安全?" autofocus>
+  </div>
+  <div class="modes" id="modes">
+    <button data-mode="hybrid" class="active">ハイブリッド</button>
+    <button data-mode="keyword">キーワード (BM25)</button>
+    <button data-mode="vector">ベクトル (意味検索)</button>
+  </div>
+  <div class="meta" id="meta"></div>
+  <div id="results"></div>
+  <div class="hint" id="hint">
+    <b>キーワード</b>は用語の完全一致に強く（日本語は文字バイグラムで部分一致）、
+    <b>ベクトル</b>は「言い換え」に強い（例:「解約率」→ チャーンレート）。
+    ハイブリッドは両者の順位を RRF (Reciprocal Rank Fusion) で融合します。
+  </div>
+</div>
+
+<script>
+const $q = document.getElementById('q');
+const $results = document.getElementById('results');
+const $meta = document.getElementById('meta');
+let mode = 'hybrid', timer = null, seq = 0;
+
+fetch('/api/stats').then(r => r.json()).then(s => {
+  const emb = s.embedder ? `embedder: ${s.embedder}` : 'keyword only';
+  document.getElementById('stats').textContent =
+    `${s.files} files / ${s.chunks} chunks — ${emb} — indexed ${s.built_at} — ${s.docs_dir}`;
+});
+
+document.getElementById('modes').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  mode = b.dataset.mode;
+  document.querySelectorAll('.modes button').forEach(x => x.classList.toggle('active', x === b));
+  run();
+});
+
+$q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 220); });
+
+function esc(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function highlight(text, terms) {
+  let out = esc(text);
+  if (!terms || !terms.length) return out;
+  const re = new RegExp(terms.filter(t => t.length > 0).sort((a,b) => b.length - a.length).map(escRe).join('|'), 'giu');
+  return out.replace(re, m => `<mark>${m}</mark>`);
+}
+
+async function run() {
+  const q = $q.value.trim();
+  const my = ++seq;
+  if (!q) { $results.innerHTML = ''; $meta.textContent = ''; return; }
+  try {
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&mode=${mode}&k=10`);
+    const data = await r.json();
+    if (my !== seq) return; // stale response
+    if (!r.ok) { $meta.textContent = data.detail || 'error'; return; }
+    $meta.textContent =
+      `${data.results.length} 件表示 — keyword候補 ${data.keyword_hits} / vector候補 ${data.vector_hits} — ${data.took_ms} ms`;
+    if (!data.results.length) {
+      $results.innerHTML = '<div class="empty">ヒットなし。ベクトルモードなら言い換えでも見つかるかも。</div>';
+      return;
+    }
+    $results.innerHTML = data.results.map(res => {
+      const badges = [];
+      if (res.kw_rank)  badges.push(`<span class="badge kw">KW #${res.kw_rank} · bm25 ${res.kw_score.toFixed(2)}</span>`);
+      if (res.vec_rank) badges.push(`<span class="badge vec">VEC #${res.vec_rank} · cos ${res.vec_score.toFixed(3)}</span>`);
+      badges.push(`<span class="badge rrf">RRF ${res.rrf.toFixed(4)}</span>`);
+      return `<div class="card">
+        <div class="path">${esc(res.path)}:${res.line}</div>
+        ${res.heading ? `<div class="heading">${highlight(res.heading, data.terms)}</div>` : ''}
+        <div class="snippet">${highlight(res.snippet, data.terms)}</div>
+        <div class="badges">${badges.join('')}</div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    if (my === seq) $meta.textContent = 'サーバーに接続できません';
+  }
+}
+</script>
+</body>
+</html>

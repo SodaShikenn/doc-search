@@ -1,0 +1,4 @@
+# optional: local embedding models (torch — heavy, ~500MB+)
+# needed only for --embedder e5 / e5-large / bge-m3
+-r requirements.txt
+sentence-transformers

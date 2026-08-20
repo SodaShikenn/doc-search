@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doc Search RAG Chatbot</title>
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/purify.min.js"></script>
+<style>
+  :root {
+    --blue-600: #2563eb; --blue-700: #1d4ed8; --blue-100: #dbeafe;
+    --red-600: #dc2626; --red-700: #b91c1c;
+    --gray-100: #f3f4f6; --gray-300: #d1d5db; --gray-500: #6b7280; --gray-800: #1f2937;
+    --vec: #7a3ce0; --kw: #0e7a4a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--gray-100); color: var(--gray-800);
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  .layout { display: flex; height: 100vh; }
+
+  /* -------- left sidebar -------- */
+  .sidebar {
+    width: 25%; min-width: 260px; background: #fff; padding: 24px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    box-shadow: 0 1px 6px rgba(0,0,0,.12); z-index: 2;
+  }
+  .sidebar h1 { font-size: 22px; font-weight: 600; color: var(--blue-600); margin: 0; }
+  .field-label { display: block; margin: 18px 0 8px; font-weight: 500; }
+  select, .box {
+    width: 100%; padding: 8px 12px; border: 1px solid var(--gray-300);
+    border-radius: 6px; font-size: 14px; background: #fff;
+  }
+  select:focus { outline: 2px solid var(--blue-600); }
+  .box { padding: 10px 12px; }
+  .box label { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 3px 0; cursor: pointer; }
+  .box input[type=radio], .box input[type=checkbox] { accent-color: var(--blue-600); }
+  .keyhint { font-size: 12px; color: var(--gray-500); margin-top: 6px; line-height: 1.5; }
+
+  .conv-header { display: flex; justify-content: space-between; align-items: center; margin: 20px 0 8px; }
+  .conv-header .title { font-weight: 500; }
+  .btn { border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .btn-blue { background: var(--blue-600); color: #fff; padding: 6px 12px; }
+  .btn-blue:hover { background: var(--blue-700); }
+  .btn-sm { font-size: 13px; padding: 4px 10px; }
+  #conv-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; min-height: 60px; }
+  .conv-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    border: 1px solid var(--gray-300); border-radius: 6px; padding: 6px 10px;
+    cursor: pointer; font-size: 14px;
+  }
+  .conv-item.active { border-color: #60a5fa; background: var(--gray-100); color: var(--blue-600); }
+  .conv-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv-item input { flex: 1; min-width: 0; font-size: 13px; padding: 2px 4px; }
+  .icon-btn { background: none; border: none; cursor: pointer; color: var(--blue-600); font-size: 14px; padding: 0 2px; }
+  .icon-btn:hover { color: var(--blue-700); }
+  .sidebar-top { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .copyright { text-align: center; margin-top: 14px; font-size: 12.5px; color: var(--gray-500); }
+  .copyright a { color: var(--blue-600); }
+
+  /* -------- right chat area -------- */
+  .main { flex: 1; display: flex; flex-direction: column; padding: 24px; gap: 16px; min-width: 0; }
+  .chat-card {
+    flex: 1; background: #fff; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 1px 6px rgba(0,0,0,.10); display: flex; flex-direction: column; min-height: 0;
+  }
+  #chat-window { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .sysmsg { font-size: 13px; color: var(--gray-500); }
+  .msg { display: flex; padding: 10px 16px; border-radius: 10px; font-size: 14.5px; line-height: 1.8; }
+  .msg .who { width: 58px; text-align: right; font-weight: 600; flex-shrink: 0; margin-right: 10px; }
+  .msg .body { flex: 1; min-width: 0; overflow-wrap: break-word; }
+  .msg.user { background: var(--blue-100); white-space: pre-wrap; }
+  .msg.assistant { background: var(--gray-100); }
+  .msg.assistant .body :first-child { margin-top: 0; }
+  .msg.assistant .body :last-child { margin-bottom: 0; }
+  .msg.assistant .body pre { background: #1f2937; color: #f9fafb; padding: 10px 12px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+  .msg.assistant .body code { background: #e5e7eb; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .msg.assistant .body pre code { background: none; padding: 0; }
+  .err { color: var(--red-600); }
+  .cursor { display: inline-block; width: 8px; height: 15px; background: var(--gray-500); vertical-align: text-bottom; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .sources { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .src-chip {
+    font-size: 11.5px; font-family: ui-monospace, Menlo, monospace;
+    background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe;
+    padding: 2px 8px; border-radius: 999px; cursor: help;
+  }
+  .src-chip .via { font-weight: 700; }
+  .meta-line { font-size: 11.5px; color: var(--gray-500); margin-top: 6px; }
+
+  .input-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.10); padding: 16px; }
+  .input-row { display: flex; gap: 12px; }
+  #chat-input {
+    flex: 1; padding: 10px 14px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 15px;
+  }
+  #chat-input:focus { outline: 2px solid var(--blue-600); }
+  .btn-send { background: var(--blue-600); color: #fff; padding: 10px 18px; }
+  .btn-send:hover { background: var(--blue-700); }
+  .btn-send:disabled { background: #93c5fd; cursor: default; }
+  .btn-cancel { background: var(--red-600); color: #fff; padding: 10px 18px; }
+  .btn-cancel:hover { background: var(--red-700); }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Left Selection Area -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <h1>Doc Search RAG</h1>
+
+      <label class="field-label" for="model-select">Select AI Model：</label>
+      <select id="model-select"></select>
+      <div class="keyhint" id="key-hint"></div>
+
+      <label class="field-label">Select Knowledge Base：</label>
+      <div class="box">
+        <label><input type="checkbox" id="use-rag" checked> ドキュメント検索（RAG）を使う</label>
+        <div style="border-top:1px solid var(--gray-100); margin:6px 0;"></div>
+        <div style="font-weight:500; margin:2px 0 4px;">検索の深さ：</div>
+        <label><input type="radio" name="effort" value="auto" checked> おまかせ（推奨） — 質問に合わせて自動調整</label>
+        <label><input type="radio" name="effort" value="easy"> かんたん — 速い。用語をそのまま探す</label>
+        <label><input type="radio" name="effort" value="medium"> ふつう — 標準の検索</label>
+        <label><input type="radio" name="effort" value="hard"> しっかり — 言い換えも生成して深く探す</label>
+      </div>
+
+      <div class="conv-header">
+        <span class="title">Conversation History:</span>
+        <button class="btn btn-blue btn-sm" id="new-chat">New Chat</button>
+      </div>
+      <div id="conv-list"></div>
+    </div>
+    <div class="copyright">
+      Copyright @ 2026. <a href="https://github.com/SodaShikenn" target="_blank">SodaShikenn</a>
+      ・ <a href="/search.html">検索エクスプローラ</a>
+    </div>
+  </aside>
+
+  <!-- Right Chat Area -->
+  <main class="main">
+    <div class="chat-card">
+      <div id="chat-window">
+        <div class="sysmsg">System Message: 社内ドキュメント（用語集・レビュー観点・設計資料）に基づいて回答する RAG チャットです。左でモデルと検索モードを選べます。</div>
+      </div>
+    </div>
+    <div class="input-card">
+      <div class="input-row">
+        <input id="chat-input" type="text" placeholder="Enter message...（例: 二重登録を防ぐ仕組みは?）">
+        <button class="btn btn-send" id="send-btn">Send</button>
+        <button class="btn btn-cancel" id="cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const LS_KEY = 'docsearch_conversations';
+let conversations = [];   // [{uid, name, messages: [{role, content, sources?, meta?}]}]
+let currentUid = null;
+let streaming = false;
+let aborter = null;
+let editingUid = null;
+
+// ---------- helpers ----------
+const uidGen = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// LLM output can be steered by indexed doc content (prompt injection), so the
+// assistant path must never reach innerHTML unsanitized — DOMPurify or nothing.
+const md = (s) => (window.marked && window.DOMPurify)
+  ? DOMPurify.sanitize(marked.parse(String(s)))
+  : esc(s).replace(/\n/g, '<br>');
+
+function current() { return conversations.find(c => c.uid === currentUid); }
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(conversations)); }
+function load() {
+  try { conversations = JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { conversations = []; }
+}
+
+// ---------- models ----------
+async function loadModels() {
+  try {
+    const r = await fetch('/api/models');
+    const data = await r.json();
+    const sel = $('model-select');
+    sel.innerHTML = data.models.map(m => `<option value="${esc(m.id)}">${esc(m.label)}</option>`).join('');
+    if (data.api_key_present) {
+      sel.value = data.default;
+      $('key-hint').textContent = 'API key: 設定済み';
+    } else {
+      sel.value = 'demo';
+      $('key-hint').textContent = 'API key 未設定 → Demo モデル選択中。doc-search/.env に ANTHROPIC_API_KEY を設定すると Claude が使えます。';
+    }
+  } catch { $('key-hint').textContent = 'モデル一覧の取得に失敗しました'; }
+}
+
+// ---------- conversations ----------
+function createConversation() {
+  const conv = { uid: uidGen(), name: `New Chat ${conversations.length + 1}`, messages: [] };
+  conversations.unshift(conv);
+  currentUid = conv.uid;
+  editingUid = null;
+  save(); renderConvList(); renderMessages();
+}
+
+function activateConversation(uid) {
+  if (streaming) return;
+  currentUid = uid; editingUid = null;
+  renderConvList(); renderMessages();
+}
+
+function deleteConversation(uid) {
+  if (!confirm('Are you sure you want to delete this conversation and its chat history?')) return;
+  conversations = conversations.filter(c => c.uid !== uid);
+  if (currentUid === uid) currentUid = conversations.length ? conversations[0].uid : null;
+  if (!currentUid) { createConversation(); return; }
+  save(); renderConvList(); renderMessages();
+}
+
+function renderConvList() {
+  const wrap = $('conv-list');
+  wrap.innerHTML = '';
+  for (const conv of conversations) {
+    const div = document.createElement('div');
+    div.className = 'conv-item' + (conv.uid === currentUid ? ' active' : '');
+    div.onclick = () => activateConversation(conv.uid);
+    if (editingUid === conv.uid) {
+      const input = document.createElement('input');
+      input.value = conv.name;
+      input.onclick = (e) => e.stopPropagation();
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'icon-btn'; saveBtn.textContent = '💾'; saveBtn.title = 'save';
+      saveBtn.onclick = (e) => { e.stopPropagation(); conv.name = input.value.trim() || conv.name; editingUid = null; save(); renderConvList(); };
+      div.append(input, saveBtn);
+    } else {
+      const span = document.createElement('span');
+      span.className = 'name'; span.textContent = conv.name;
+      div.append(span);
+      if (conv.uid === currentUid) {
+        const edit = document.createElement('button');
+        edit.className = 'icon-btn'; edit.textContent = '✎'; edit.title = 'rename';
+        edit.onclick = (e) => { e.stopPropagation(); editingUid = conv.uid; renderConvList(); };
+        const del = document.createElement('button');
+        del.className = 'icon-btn'; del.textContent = '🗑'; del.title = 'delete';
+        del.onclick = (e) => { e.stopPropagation(); deleteConversation(conv.uid); };
+        div.append(edit, del);
+      }
+    }
+    wrap.append(div);
+  }
+}
+
+// ---------- messages ----------
+function retrievalLine(r) {
+  if (!r) return '';
+  const labels = { easy: 'かんたん', medium: 'ふつう', hard: 'しっかり' };
+  let t = '🔎 検索: ' + (r.effort_requested === 'auto'
+    ? `おまかせ → ${labels[r.effort_used] || r.effort_used}`
+    : (labels[r.effort_used] || r.effort_used));
+  if (r.reason) t += ` — ${r.reason}`;
+  const extra = (r.queries || []).slice(1);
+  if (extra.length) t += `／言い換え: ${extra.join(' / ')}`;
+  return `<div class="meta-line">${esc(t)}</div>`;
+}
+
+function sourceChips(sources) {
+  if (!sources || !sources.length) return '';
+  const chips = sources.map((s, i) => {
+    const via = s.vec_rank && s.kw_rank ? 'KW+VEC' : (s.vec_rank ? 'VEC' : 'KW');
+    return `<span class="src-chip" title="${esc(s.heading || '')}&#10;${esc(s.snippet || '')}">[${i + 1}] ${esc(s.path)}:${s.line} <span class="via">${via}</span></span>`;
+  }).join('');
+  return `<div class="sources">${chips}</div>`;
+}
+
+function renderMessages(liveCursor = false) {
+  const win = $('chat-window');
+  const conv = current();
+  let html = '<div class="sysmsg">System Message: 社内ドキュメント（用語集・レビュー観点・設計資料）に基づいて回答する RAG チャットです。左でモデルと検索モードを選べます。</div>';
+  if (conv) {
+    conv.messages.forEach((m, i) => {
+      if (m.role === 'user') {
+        html += `<div class="msg user"><span class="who">User：</span><div class="body">${esc(m.content)}</div></div>`;
+      } else {
+        const last = i === conv.messages.length - 1;
+        const cursor = liveCursor && last ? '<span class="cursor"></span>' : '';
+        const err = m.error ? `<div class="err">${esc(m.error)}</div>` : '';
+        const meta = m.meta ? `<div class="meta-line">${esc(m.meta)}</div>` : '';
+        html += `<div class="msg assistant"><span class="who">LLM：</span><div class="body">${md(m.content || '')}${cursor}${err}${retrievalLine(m.retrieval)}${sourceChips(m.sources)}${meta}</div></div>`;
+      }
+    });
+  }
+  win.innerHTML = html;
+  win.scrollTop = win.scrollHeight;
+}
+
+// ---------- send / stream ----------
+async function sendMessage() {
+  const input = $('chat-input');
+  const text = input.value.trim();
+  if (!text || streaming) return;
+  if (!current()) createConversation();
+  const conv = current();
+
+  conv.messages.push({ role: 'user', content: text });
+  input.value = '';
+  const assistant = { role: 'assistant', content: '', sources: null, meta: null, error: null };
+  conv.messages.push(assistant);
+  save(); renderMessages(true);
+
+  const params = {
+    model: $('model-select').value,
+    effort: document.querySelector('input[name=effort]:checked').value,
+    use_rag: $('use-rag').checked,
+  };
+  // non-empty turns only — this also excludes the assistant placeholder just pushed
+  const history = conv.messages
+    .filter(m => m.content)
+    .map(m => ({ role: m.role, content: m.content }));
+
+  streaming = true;
+  $('send-btn').disabled = true;
+  aborter = new AbortController();
+  let terminal = false; // saw a done/error/abort — the message state is truthful
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history, params }),
+      signal: aborter.signal,
+    });
+    if (!resp.ok) {
+      const detail = await resp.json().catch(() => ({}));
+      assistant.error = 'Error: ' + (detail.detail || resp.statusText);
+      terminal = true;
+    } else {
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop();
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data:')) continue;
+          const ev = JSON.parse(line.slice(5)).data;
+          if (ev.type === 'status') assistant.meta = ev.message;
+          else if (ev.type === 'sources') { assistant.sources = ev.sources; assistant.retrieval = ev.retrieval; assistant.meta = null; }
+          else if (ev.type === 'delta') assistant.content += ev.content;
+          else if (ev.type === 'error') { assistant.error = ev.message; terminal = true; }
+          else if (ev.type === 'done') {
+            assistant.meta = `model: ${ev.model}` + (ev.output_tokens ? ` ・ ${ev.output_tokens} output tokens` : '');
+            terminal = true;
+          }
+          renderMessages(true);
+        }
+      }
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') { assistant.meta = '（キャンセルされました）'; terminal = true; }
+    else assistant.error = 'Fetch error: ' + err.message;
+  } finally {
+    if (!terminal) {
+      // stream died between status and done — don't persist the transient
+      // "searching…" text as if it were still running
+      assistant.meta = null;
+      if (!assistant.error) assistant.error = '通信が中断されました（サーバーまたは回線を確認してください）';
+    }
+    streaming = false;
+    $('send-btn').disabled = false;
+    aborter = null;
+    // auto-title the conversation from the first question
+    if (conv.name.startsWith('New Chat') && conv.messages.length >= 1) {
+      conv.name = conv.messages[0].content.slice(0, 18) || conv.name;
+    }
+    save(); renderConvList(); renderMessages(false);
+  }
+}
+
+// ---------- wiring ----------
+$('send-btn').onclick = sendMessage;
+$('cancel-btn').onclick = () => { if (aborter) aborter.abort(); };
+$('chat-input').addEventListener('keydown', (e) => {
+  // isComposing guards Japanese IME conversion; keyCode 229 is the same guard in Safari
+  if ((e.key === 'Enter' || e.keyCode === 13) && !e.isComposing && e.keyCode !== 229) sendMessage();
+});
+$('new-chat').onclick = () => { if (!streaming) createConversation(); };
+
+load();
+if (!conversations.length) createConversation();
+else { currentUid = conversations[0].uid; renderConvList(); renderMessages(); }
+loadModels();
+</script>
+</body>
+</html>

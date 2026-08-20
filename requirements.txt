@@ -1,0 +1,10 @@
+# core — lightweight, no ML stack (~30MB total)
+# floors = versions this repo is tested with; mcp 2.x is required
+# (mcp 1.x had a different module layout) and anthropic needs the
+# server-side-fallback / output_config surface
+numpy>=2.0
+fastapi>=0.115
+uvicorn[standard]>=0.30
+anthropic>=0.125
+mcp>=2.0
+httpx>=0.27

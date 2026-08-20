@@ -1,0 +1,29 @@
+services:
+  docsearch:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      args:
+        # 1 = bake torch/sentence-transformers for fully-offline vectors
+        WITH_LOCAL_ML: ${WITH_LOCAL_ML:-0}
+    # bound to localhost on purpose — put a reverse proxy with auth in front
+    # (or a VPN) before exposing to a network: the app itself has no login.
+    ports:
+      - "127.0.0.1:${DOCSEARCH_PORT:-8765}:8765"
+    environment:
+      # interpolated from ./.env (never baked into the image)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      DOCSEARCH_EMBEDDER: ${DOCSEARCH_EMBEDDER:-auto}
+      # DOCSEARCH_REINDEX=1 docker compose up -d  → rebuild the index
+      DOCSEARCH_REINDEX: ${DOCSEARCH_REINDEX:-0}
+    volumes:
+      # point this at the real docs repo on the host
+      - ./sample_docs:/docs:ro
+      - docsearch-index:/data
+    # on-failure (not unless-stopped) so a misconfigured embedder/key fails
+    # visibly after 5 attempts instead of crash-looping forever
+    restart: on-failure:5
+
+volumes:
+  docsearch-index:

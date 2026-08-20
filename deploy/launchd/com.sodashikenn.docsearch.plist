@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- TEMPLATE — install-launchd.sh substitutes @HERE@ with the repo path.
+     Do not load this file directly. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sodashikenn.docsearch</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>@HERE@/.venv/bin/python</string>
+        <string>-m</string>
+        <string>docsearch</string>
+        <string>serve</string>
+        <string>--port</string>
+        <string>8765</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>@HERE@</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <!-- slow the relaunch loop if the service is misconfigured (e.g. macOS
+         TCC denies Desktop access to the python binary) -->
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <key>StandardOutPath</key>
+    <string>@HERE@/logs/docsearch.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HERE@/logs/docsearch.err.log</string>
+</dict>
+</plist>
